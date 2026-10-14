@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+*.log
+
+# Environment
+.env
+.env.local
+
+# Data (trop lourd)
+data/raw/
+data/processed/
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Modèles (trop lourds)
+ml/models/
+*.pkl
+*.joblib
+*.h5
+
+# Docker
+postgres_data/
+n8n_data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# n8n
+n8n/data/

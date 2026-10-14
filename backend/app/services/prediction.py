@@ -1,0 +1,61 @@
+import joblib
+import pandas as pd
+import numpy as np
+import shap
+from typing import Dict, Any
+
+MODEL_PATH = "/ml/models/fraud_model_xgb.pkl"
+FEATURES_PATH = "/ml/models/feature_names.pkl"
+
+print("Chargement du modèle de fraude...")
+model = joblib.load(MODEL_PATH)
+feature_names = joblib.load(FEATURES_PATH)
+explainer = shap.TreeExplainer(model)
+print("Modèle et SHAP chargés avec succès.")
+
+def predict_fraud(data: Dict[str, Any]) -> Dict[str, Any]:
+    try:
+        # Créer un DataFrame
+        df = pd.DataFrame([data])
+
+        # Ajouter les colonnes manquantes avec 0
+        for col in feature_names:
+            if col not in df.columns:
+                df[col] = 0
+
+        # Garder uniquement les features du modèle (dans le bon ordre)
+        X = df[feature_names].fillna(0)
+
+        # Prédiction
+        proba = float(model.predict_proba(X)[0][1])
+        prediction = int(proba >= 0.5)
+
+        # SHAP
+        shap_values = explainer.shap_values(X)[0]
+
+        # Top 5 features
+        shap_importance = sorted(
+            zip(feature_names, shap_values),
+            key=lambda x: abs(x[1]),
+            reverse=True
+        )[:5]
+
+        top_features = [
+            {
+                "feature": str(name),
+                "impact": round(float(value), 4),
+                "direction": "augmente le risque" if value > 0 else "diminue le risque"
+            }
+            for name, value in shap_importance
+        ]
+
+        return {
+            "score_fraude": round(proba, 4),
+            "prediction": prediction,
+            "est_fraude": bool(prediction),
+            "seuil_utilise": 0.5,
+            "explication": top_features
+        }
+
+    except Exception as e:
+        raise Exception(f"Erreur lors de la prédiction : {str(e)}")
