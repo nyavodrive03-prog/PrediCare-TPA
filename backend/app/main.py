@@ -55,7 +55,7 @@ def health_check():
         status["status"] = "degraded"
 
     # Vérifier le modèle
-    if os.path.exists("/ml/models/fraud_model_xgb.pkl"):
+    if os.path.exists("/ml/models/v1/fraud_model_xgb.pkl"):
         status["model_loaded"] = True
     else:
         status["status"] = "degraded"

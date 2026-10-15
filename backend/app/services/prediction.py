@@ -4,8 +4,8 @@ import numpy as np
 import shap
 from typing import Dict, Any
 
-MODEL_PATH = "/ml/models/fraud_model_xgb.pkl"
-FEATURES_PATH = "/ml/models/feature_names.pkl"
+MODEL_PATH = "/ml/models/v1/fraud_model_xgb.pkl"
+FEATURES_PATH = "/ml/models/v1/feature_names.pkl"
 
 print("Chargement du modèle de fraude...")
 model = joblib.load(MODEL_PATH)
