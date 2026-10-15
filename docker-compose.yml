@@ -2,17 +2,19 @@ services:
   db:
     image: pgvector/pgvector:pg16
     container_name: predicare_db
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: predicare
-      POSTGRES_PASSWORD: predicare123
-      POSTGRES_DB: predicare_db
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 5
 
@@ -21,32 +23,64 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: predicare_backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "8000:8000"
-    env_file:
-      - .env
     volumes:
-      - ./backend:/app
-      - ./data:/data
-      - ./ml:/ml
-      - ./scripts:/scripts
+      - ./data:/app/data
+      - ./ml/models:/app/ml/models
     depends_on:
       db:
         condition: service_healthy
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: predicare_frontend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      API_URL: http://backend:8000
+      OLLAMA_HOST: http://host.docker.internal:11434
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - db
+      - backend
 
   n8n:
-    image: n8nio/n8n:latest
+    image: n8nio/n8n
     container_name: predicare_n8n
+    restart: unless-stopped
     ports:
       - "5679:5678"
     environment:
       - N8N_BASIC_AUTH_ACTIVE=true
-      - N8N_BASIC_AUTH_USER=admin
-      - N8N_BASIC_AUTH_PASSWORD=admin123
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD}
     volumes:
       - n8n_data:/home/node/.n8n
+      - ./n8n:/files
+    depends_on:
+      - backend
 
 volumes:
-  postgres_data:
+  pgdata:
   n8n_data:
