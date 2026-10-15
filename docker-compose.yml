@@ -31,11 +31,15 @@ services:
       DB_NAME: ${POSTGRES_DB}
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
+      OLLAMA_HOST: http://host.docker.internal:11434
+      N8N_WEBHOOK_URL: http://n8n:5678/webhook/predicare-alerte
     ports:
       - "8000:8000"
     volumes:
       - ./data:/app/data
       - ./ml/models:/app/ml/models
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       db:
         condition: service_healthy
@@ -59,14 +63,18 @@ services:
       - "8501:8501"
     volumes:
       - ./data:/app/data
+      - ./rag:/app/rag
+      - ./agent:/app/agent
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
-      - db
-      - backend
+      db:
+        condition: service_healthy
+      backend:
+        condition: service_started
 
   n8n:
-    image: n8nio/n8n
+    image: n8nio/n8n:latest
     container_name: predicare_n8n
     restart: unless-stopped
     ports:
@@ -75,6 +83,11 @@ services:
       - N8N_BASIC_AUTH_ACTIVE=true
       - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER}
       - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD}
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5679/
+      - GENERIC_TIMEZONE=Africa/Nairobi
     volumes:
       - n8n_data:/home/node/.n8n
       - ./n8n:/files
