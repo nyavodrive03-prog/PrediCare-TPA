@@ -22,7 +22,25 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install fastapi uvicorn pytest httpx pydantic pydantic-settings sqlalchemy psycopg[binary] python-dotenv joblib scikit-learn xgboost shap python-jose[cryptography]
+          pip install \
+            fastapi \
+            uvicorn \
+            pytest \
+            httpx \
+            pydantic \
+            pydantic-settings \
+            sqlalchemy \
+            psycopg[binary] \
+            python-dotenv \
+            joblib \
+            scikit-learn \
+            xgboost \
+            shap \
+            python-jose[cryptography] \
+            passlib[bcrypt] \
+            python-multipart \
+            email-validator \
+            alembic
       - name: Run tests
         working-directory: ./backend
         run: |
