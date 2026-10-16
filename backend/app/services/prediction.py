@@ -8,8 +8,19 @@ MODEL_PATH = "/ml/models/v1/fraud_model_xgb.pkl"
 FEATURES_PATH = "/ml/models/v1/feature_names.pkl"
 
 print("Chargement du modèle de fraude...")
-model = joblib.load(MODEL_PATH)
-feature_names = joblib.load(FEATURES_PATH)
+model = None
+feature_names = None
+
+try:
+    if MODEL_PATH.exists() and FEATURES_PATH.exists():
+        model = joblib.load(MODEL_PATH)
+        feature_names = joblib.load(FEATURES_PATH)
+        print("Modèle de fraude chargé avec succès.")
+    else:
+        print("Attention : fichiers du modèle introuvables. Mode test / CI.")
+except Exception as e:
+    print(f"Erreur lors du chargement du modèle : {e}")
+
 explainer = shap.TreeExplainer(model)
 print("Modèle et SHAP chargés avec succès.")
 
