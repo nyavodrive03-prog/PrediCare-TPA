@@ -1,0 +1,8 @@
+streamlit
+psycopg2-binary
+pgvector
+python-dotenv
+requests
+numpy
+sentence-transformers
+pymupdf

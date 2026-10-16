@@ -15,11 +15,13 @@ from dotenv import load_dotenv  # noqa: E402
 
 load_dotenv(os.path.join(RACINE, ".env"))
 
+import audit  # noqa: E402
 import auth  # noqa: E402
 import cache  # noqa: E402
 import garde_fous  # noqa: E402
 from agent import agent as poser_question  # noqa: E402
 from generation import repondre as repondre_documents  # noqa: E402
+from retrieval import rechercher  # noqa: E402
 
 st.set_page_config(page_title="PrediCare TPA", page_icon="🏥", layout="wide")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
@@ -37,14 +39,26 @@ def tableau(sql, params=None):
     return lignes
 
 
-def afficher_chat(fonction, cle):
-    """fonction(question) -> (texte, info). Garde l'historique en session."""
+def afficher_sources(sources, titre):
+    with st.expander(titre):
+        for i, s in enumerate(sources, 1):
+            st.write(f"**[{i}]** ({s['type']}) {s['contenu']}")
+
+
+def afficher_chat(fonction, cle, user, titre_sources="Passages utilisés"):
+    """fonction(question) -> (texte, info, origine, sources).
+
+    origine : cache | llm | refus | documents (alimente le journal d'audit).
+    Garde l'historique en session et journalise chaque question.
+    """
     historique = st.session_state.setdefault(cle, [])
     for m in historique:
         with st.chat_message(m["role"]):
             st.markdown(m["texte"])
             if m.get("info"):
                 st.caption(m["info"])
+            if m.get("sources"):
+                afficher_sources(m["sources"], titre_sources)
     question = st.chat_input("Posez votre question...")
     if not question:
         return
@@ -53,17 +67,26 @@ def afficher_chat(fonction, cle):
         st.markdown(question)
     with st.chat_message("assistant"):
         with st.spinner("Je cherche la réponse..."):
-            debut = time.time()
+            debut = time.perf_counter()
+            sources, statut = None, "ok"
             try:
-                texte, info = fonction(question)
-                info = f"{info} · {time.time() - debut:.1f} s"
+                texte, info, origine, sources = fonction(question)
             except Exception as e:  # noqa: BLE001
                 texte = ("Le service est momentanément indisponible. "
                          "Contactez PrediCare au 034 00 000 02.")
-                info = f"Erreur technique : {type(e).__name__}"
+                info, origine, statut = (
+                    f"Erreur technique : {type(e).__name__}", "erreur",
+                    "erreur")
+            duree = time.perf_counter() - debut
+            info = f"{info} · {duree:.1f} s"
+        audit.journaliser(user["login"], user["role"], "question", origine,
+                          int(duree * 1000), statut)
         st.markdown(texte)
         st.caption(info)
-    historique.append({"role": "assistant", "texte": texte, "info": info})
+        if sources:
+            afficher_sources(sources, titre_sources)
+    historique.append({"role": "assistant", "texte": texte, "info": info,
+                       "sources": sources})
 
 
 # --------------------------------------------------------------------
@@ -76,17 +99,31 @@ def page_assistant(user):
     def fn(q):
         # Garde-fou : refus avant tout appel à l'agent ou au LLM
         if garde_fous.vise_autre_assure(q, user["assure_id"]):
-            return garde_fous.MESSAGE_REFUS, "🛡️ Demande refusée (aucune donnée lue)"
+            return (garde_fous.MESSAGE_REFUS,
+                    "🛡️ Demande refusée (aucune donnée lue)", "refus", None)
         res = poser_question(q, {"assure_id": user["assure_id"],
                                  "formule": user["formule"]})
+        noms = {n for n, _ in res.get("outils", [])}
         if res.get("cache"):
+            origine = "cache"
             info = f"⚡ Réponse du cache (similarité {res['similarite']})"
         else:
-            noms = ", ".join(sorted({n for n, _ in res["outils"]})) or "aucun"
-            info = f"🤖 Générée par le LLM · outils : {noms}"
-        return res["reponse"], info
+            origine = "llm"
+            info = (f"🤖 Générée par le LLM · outils : "
+                    f"{', '.join(sorted(noms)) or 'aucun'}")
+        # Réponse sourcée : passages du contrat les plus proches de la question
+        sources = None
+        if res.get("cache") or "chercher_documents" in noms:
+            try:
+                trouves = rechercher(q, formule=user["formule"], k=5)
+                utiles = [p for p in trouves if p["type"] != "prestataire"]
+                sources = (utiles or trouves)[:3]
+            except Exception:  # noqa: BLE001
+                sources = None
+        return res["reponse"], info, origine, sources
 
-    afficher_chat(fn, "chat_assure")
+    afficher_chat(fn, "chat_assure", user,
+                  "Passages de référence (documents du contrat)")
 
 
 def page_mes_factures(user):
@@ -109,15 +146,11 @@ def page_pro(user):
 
     def fn(q):
         res = repondre_documents(q, formule=formule)
-        st.session_state["dernieres_sources"] = res["sources"]
-        return res["reponse"], f"📄 Documents (formule {formule})"
+        return (res["reponse"], f"📄 Documents (formule {formule})",
+                "documents", res["sources"])
 
-    afficher_chat(fn, "chat_pro")
-    sources = st.session_state.get("dernieres_sources")
-    if sources:
-        with st.expander("Passages utilisés pour la dernière réponse"):
-            for i, s in enumerate(sources, 1):
-                st.write(f"**[{i}]** {s['contenu']}")
+    afficher_chat(fn, "chat_pro", user,
+                  "Passages utilisés pour cette réponse")
 
 
 def page_gestionnaire(user):
@@ -155,6 +188,32 @@ def etat_service(nom, test):
         st.error(f"{nom} : indisponible ({type(e).__name__})")
 
 
+def section_supervision():
+    st.subheader("Supervision")
+    periodes = {"1 heure": 1, "24 heures": 24, "7 jours": 168}
+    choix = st.selectbox("Période", list(periodes))
+    m = audit.metriques(periodes[choix])
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Questions", m["questions"])
+    c2.metric("Erreurs", m["erreurs"])
+    c3.metric("Latence LLM moyenne",
+              f"{m['latence_llm_ms'] / 1000:.1f} s")
+    c4.metric("Latence p95", f"{m['p95_ms'] / 1000:.1f} s")
+    c5, c6, c7 = st.columns(3)
+    taux = (100 * m["cache"] / m["questions"]) if m["questions"] else 0
+    c5.metric("Réponses du cache", f"{m['cache']} ({taux:.0f} %)")
+    c6.metric("Demandes refusées (garde-fou)", m["refus"])
+    c7.metric("Connexions échouées", m["connexions_echouees"])
+    st.caption("Le journal ne conserve jamais le texte des questions "
+               "(protection des données de santé).")
+    with st.expander("Journal d'audit (30 derniers événements)"):
+        tableau("""SELECT to_char(horodatage, 'YYYY-MM-DD HH24:MI:SS') AS horodatage,
+                          login, role, evenement, detail, duree_ms, statut
+                   FROM journal_audit ORDER BY id DESC LIMIT 30""")
+    st.info("🚧 Le suivi de la dérive du modèle de fraude sera branché sur "
+            "l'API de l'équipe.")
+
+
 def page_admin(user):
     st.header("Administration")
     st.subheader("État des services")
@@ -165,6 +224,8 @@ def page_admin(user):
                                       timeout=3).raise_for_status())
     _, l = auth.requete("SELECT COUNT(*) FROM documents_vectorises")
     st.write(f"Documents vectorisés : **{l[0][0]}**")
+
+    section_supervision()
 
     st.subheader("Cache sémantique")
     _, l = auth.requete("SELECT COUNT(*), COALESCE(SUM(nb_hits),0) "
@@ -185,9 +246,12 @@ def page_admin(user):
                         (str(seuil),))
         conn.commit()
         conn.close()
+        audit.journaliser(user["login"], user["role"], "config",
+                          f"cache_seuil={seuil}")
         st.success(f"Seuil enregistré : {seuil} (effet immédiat)")
     if col_b.button("Vider le cache"):
         cache.vider()
+        audit.journaliser(user["login"], user["role"], "config", "cache_vide")
         st.success("Cache vidé.")
 
     st.subheader("Utilisateurs")
@@ -220,9 +284,12 @@ def ecran_login():
     if valider:
         user = auth.verifier(login.strip(), mdp)
         if user:
+            audit.journaliser(user["login"], user["role"], "connexion",
+                              statut="ok")
             st.session_state["user"] = user
             st.session_state["echecs"] = 0
             st.rerun()
+        audit.journaliser(login.strip(), None, "connexion", statut="echec")
         st.session_state["echecs"] = st.session_state.get("echecs", 0) + 1
         st.error("Identifiant ou mot de passe incorrect.")
     st.caption("Démo : assure1, assure2, assure3, pro1, gest1, admin1 "
