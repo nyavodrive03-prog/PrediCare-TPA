@@ -3,26 +3,27 @@ import pandas as pd
 import numpy as np
 import shap
 from typing import Dict, Any
+from pathlib import Path
 
-MODEL_PATH = "/ml/models/v1/fraud_model_xgb.pkl"
-FEATURES_PATH = "/ml/models/v1/feature_names.pkl"
+MODEL_PATH = Path("/ml/models/v1/fraud_model_xgb.pkl")
+FEATURES_PATH = Path("/ml/models/v1/feature_names.pkl")
 
 print("Chargement du modèle de fraude...")
+
 model = None
 feature_names = None
+explainer = None
 
 try:
     if MODEL_PATH.exists() and FEATURES_PATH.exists():
         model = joblib.load(MODEL_PATH)
         feature_names = joblib.load(FEATURES_PATH)
-        print("Modèle de fraude chargé avec succès.")
+        explainer = shap.TreeExplainer(model)
+        print("Modèle et SHAP chargés avec succès.")
     else:
         print("Attention : fichiers du modèle introuvables. Mode test / CI.")
 except Exception as e:
     print(f"Erreur lors du chargement du modèle : {e}")
-
-explainer = shap.TreeExplainer(model)
-print("Modèle et SHAP chargés avec succès.")
 
 def predict_fraud(data: Dict[str, Any]) -> Dict[str, Any]:
     try:
