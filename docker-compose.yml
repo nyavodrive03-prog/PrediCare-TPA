@@ -31,13 +31,16 @@ services:
       DB_NAME: ${POSTGRES_DB}
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       OLLAMA_HOST: http://host.docker.internal:11434
-      N8N_WEBHOOK_URL: http://n8n:5678/webhook/predicare-alerte
+      N8N_WEBHOOK_URL: http://n8n:5678/webhook/fraude-alerte
     ports:
       - "8000:8000"
     volumes:
       - ./data:/app/data
+      - ./data:/data
       - ./ml/models:/app/ml/models
+      - ./ml/models:/ml/models
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -57,12 +60,14 @@ services:
       DB_NAME: ${POSTGRES_DB}
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       API_URL: http://backend:8000
       OLLAMA_HOST: http://host.docker.internal:11434
     ports:
       - "8501:8501"
     volumes:
       - ./data:/app/data
+      - ./data/pdf:/app/data/pdf
       - ./rag:/app/rag
       - ./agent:/app/agent
     extra_hosts:
@@ -81,8 +86,8 @@ services:
       - "5679:5678"
     environment:
       - N8N_BASIC_AUTH_ACTIVE=true
-      - N8N_BASIC_AUTH_USER=admin
-      - N8N_BASIC_AUTH_PASSWORD=admin123
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD}
       - N8N_HOST=localhost
       - N8N_PORT=5678
       - N8N_PROTOCOL=http
