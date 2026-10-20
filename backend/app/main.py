@@ -4,6 +4,7 @@ from app.db.database import engine, Base
 from app.db import models
 from app.api import auth
 from app.api import predict
+import os
 
 app = FastAPI(
     title="PrediCare TPA API",
@@ -20,7 +21,11 @@ app.add_middleware(
 )
 
 # Création des tables
-Base.metadata.create_all(bind=engine)
+if os.getenv("TESTING") != "1" and os.getenv("CI") != "true":
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        print(f"Attention : impossible de créer les tables : {e}")
 
 # Routes
 app.include_router(auth.router)

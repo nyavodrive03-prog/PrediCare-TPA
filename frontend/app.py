@@ -143,8 +143,105 @@ def page_gestionnaire(user):
     else:
         tableau(sql + " WHERE f.statut = %s ORDER BY f.date_soins DESC",
                 (statut,))
-    st.info("🚧 Les alertes de fraude (score, explications SHAP) seront "
-            "branchées sur l'API de l'équipe.")
+    
+    st.divider()
+    st.subheader("Analyser une facture (détection de fraude)")
+
+    API_URL = os.getenv("API_URL", "http://backend:8000")
+
+    with st.expander("Tester une prédiction de fraude", expanded=True):
+        st.caption("Colle ici un JSON de features (celui préparé pour la démo)")
+        json_input = st.text_area(
+            "JSON des features",
+            height=200,
+            value="""{
+  "nb_lignes": 1,
+  "montant_total": 86500,
+  "montant_eligible": 80000,
+  "reste_a_charge": 22500,
+  "a_ordonnance": 0,
+  "delai_soin_facture": 1,
+  "delai_facture_reception": 16,
+  "jour_semaine_soin": 0,
+  "est_weekend": 0,
+  "heure_soin_num": 10,
+  "montant_moyen_ligne": 86500.0,
+  "nb_lignes_reel": 1,
+  "quantite_totale": 1,
+  "quantite_max": 1,
+  "prix_unitaire_max": 86500,
+  "prix_unitaire_moyen": 86500.0,
+  "montant_lignes_total": 86500,
+  "nb_actes": 1,
+  "nb_medicaments": 0,
+  "diff_nb_lignes": 0,
+  "ratio_medicaments": 0.0,
+  "ecart_tarif_moyen": 0.0,
+  "ecart_tarif_max": 0.0,
+  "ecart_tarif_pct_moyen": 0.0,
+  "nb_lignes_surfacturees": 0,
+  "nb_lignes_avec_tarif": 0,
+  "note_qualite": 4,
+  "conventionne": 1,
+  "type_prest_CABINET_DENTAIRE": false,
+  "type_prest_CABINET_GENERALISTE": true,
+  "type_prest_CABINET_KINE": false,
+  "type_prest_CABINET_SPECIALISTE": false,
+  "type_prest_CENTRE_IMAGERIE": false,
+  "type_prest_CLINIQUE": false,
+  "type_prest_LABORATOIRE": false,
+  "type_prest_MATERNITE": false,
+  "type_prest_OPTICIEN": false,
+  "type_prest_PHARMACIE": false,
+  "niveau_ELEVE": false,
+  "niveau_RAISONNABLE": false,
+  "niveau_TRES_ELEVE": true,
+  "type_fac_CONSULTATION": true,
+  "type_fac_DENTAIRE": false,
+  "type_fac_HOSPITALISATION": false,
+  "type_fac_IMAGERIE": false,
+  "type_fac_KINESITHERAPIE": false,
+  "type_fac_LABORATOIRE": false,
+  "type_fac_MATERNITE": false,
+  "type_fac_OPTIQUE": false,
+  "type_fac_PHARMACIE": false,
+  "canal_EMAIL": false,
+  "canal_PAPIER_SCAN": true,
+  "canal_PORTAIL_PRESTATAIRE": false,
+  "mode_REMBOURSEMENT_ASSURE": false,
+  "mode_TIERS_PAYANT": true
+}"""
+        )
+
+        if st.button("Analyser la fraude", type="primary"):
+            try:
+                import json
+                data = json.loads(json_input)
+                response = requests.post(
+                    f"{API_URL}/predict/",
+                    json={"data": data},
+                    timeout=30
+                )
+                if response.status_code == 200:
+                    result = response.json()
+                    score = result.get("score_fraude", 0)
+                    if score >= 0.8:
+                        st.error(f"FRAUDE DÉTECTÉE – Score : {score}")
+                    else:
+                        st.success(f"Facture normale – Score : {score}")
+
+                    st.write("**Explications SHAP (top facteurs) :**")
+                    for exp in result.get("explication", []):
+                        st.write(f"- **{exp['feature']}** → {exp['direction']} (impact : {exp['impact']})")
+
+                    if result.get("alerte_envoyee"):
+                        st.info("Alerte envoyée sur Slack")
+                    else:
+                        st.warning("Alerte non envoyée")
+                else:
+                    st.error(f"Erreur API : {response.status_code} – {response.text}")
+            except Exception as e:
+                st.error(f"Erreur : {e}")
 
 
 def etat_service(nom, test):
