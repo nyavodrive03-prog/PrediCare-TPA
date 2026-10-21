@@ -2,7 +2,8 @@ FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    HF_HOME=/root/.cache/huggingface
 
 WORKDIR /app
 
@@ -13,9 +14,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Dépendances Python
+# 1. PyTorch CPU EN PREMIER (évite le téléchargement des paquets CUDA lourds)
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
+# 2. Dépendances Python (hors sentence-transformers)
 COPY frontend/requirements.txt /app/requirements.txt
-RUN pip install --upgrade pip && pip install -r /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+# 3. sentence-transformers APRÈS torch CPU
+RUN pip install --no-cache-dir sentence-transformers
 
 # Code applicatif
 COPY frontend/ /app/frontend/

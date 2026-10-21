@@ -7,6 +7,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 SQL = """
+-- 1. Créer le rôle agent_ro (read-only) s'il n'existe pas
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'agent_ro') THEN
+    CREATE ROLE agent_ro LOGIN PASSWORD 'agent_ro';
+  END IF;
+END $$;
+
+-- 2. Tables provisoires
 DROP TABLE IF EXISTS factures_prov;
 DROP TABLE IF EXISTS assures_prov;
 
@@ -26,7 +34,7 @@ CREATE TABLE factures_prov (
     prestataire TEXT NOT NULL,
     montant_facture INT NOT NULL,
     montant_rembourse INT NOT NULL,
-    statut TEXT NOT NULL,          -- EN_COURS, PAYEE, REJETEE
+    statut TEXT NOT NULL,
     motif_rejet TEXT
 );
 
@@ -48,20 +56,23 @@ INSERT INTO factures_prov
  ('F-0008', 2, '2026-05-01', 'Optique', 'Optique Zina', 90000, 0, 'REJETEE', 'DELAI_DE_CARENCE'),
  ('F-0009', 3, '2026-06-18', 'Hospitalisation', 'Polyclinique Tanjaka', 900000, 900000, 'PAYEE', NULL);
 
-DO $$ BEGIN
-  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'agent_ro') THEN
-    CREATE ROLE agent_ro LOGIN PASSWORD 'agent_ro';
-  END IF;
+-- 3. Droits pour le compte read-only de l'agent
+DO $$
+BEGIN
+  EXECUTE format('GRANT CONNECT ON DATABASE %I TO agent_ro', current_database());
 END $$;
-GRANT CONNECT ON DATABASE predicare TO agent_ro;
+
 GRANT USAGE ON SCHEMA public TO agent_ro;
 GRANT SELECT ON assures_prov, factures_prov TO agent_ro;
 """
 
 conn = psycopg2.connect(
-    host=os.getenv("DB_HOST", "localhost"), port=os.getenv("DB_PORT", "5432"),
-    dbname=os.getenv("DB_NAME", "predicare"), user=os.getenv("DB_USER", "postgres"),
-    password=os.getenv("DB_PASSWORD", "test"))
+    host=os.getenv("DB_HOST", "localhost"),
+    port=os.getenv("DB_PORT", "5432"),
+    dbname=os.getenv("DB_NAME", "predicare_db"),
+    user=os.getenv("DB_USER", "predicare"),
+    password=os.getenv("DB_PASSWORD", "predicare123"),
+)
 with conn.cursor() as cur:
     cur.execute(SQL)
 conn.commit()

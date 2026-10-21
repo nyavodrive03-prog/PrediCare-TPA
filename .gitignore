@@ -14,6 +14,7 @@ env/
 # Data (trop lourd)
 data/raw/
 data/processed/
+data/pdf
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 

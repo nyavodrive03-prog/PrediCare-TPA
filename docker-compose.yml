@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./db/init:/docker-entrypoint-initdb.d
@@ -70,6 +70,7 @@ services:
       - ./data/pdf:/app/data/pdf
       - ./rag:/app/rag
       - ./agent:/app/agent
+      - hf_cache:/root/.cache/huggingface          
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -102,3 +103,4 @@ services:
 volumes:
   pgdata:
   n8n_data:
+  hf_cache:                                          # ← ajouté
