@@ -70,7 +70,8 @@ services:
       - ./data/pdf:/app/data/pdf
       - ./rag:/app/rag
       - ./agent:/app/agent
-      - hf_cache:/root/.cache/huggingface          
+      - hf_cache:/root/.cache/huggingface      
+      - ./frontend:/app/frontend    
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
