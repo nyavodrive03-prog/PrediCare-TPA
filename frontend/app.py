@@ -24,7 +24,8 @@ from generation import repondre as repondre_documents  # noqa: E402
 st.set_page_config(page_title="PrediCare TPA", page_icon="🏥", layout="wide")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 ROLES = {"assure": "Assuré", "professionnel": "Professionnel de santé",
-         "gestionnaire": "Gestionnaire", "administrateur": "Administrateur"}
+         "gestionnaire": "Gestionnaire", "administrateur": "Administrateur",
+         "admin": "Administrateur"}  
 
 
 # --------------------------------------------------------------------
@@ -163,36 +164,17 @@ def page_admin(user):
     etat_service("Ollama (LLM)",
                  lambda: requests.get(f"{OLLAMA_URL}/api/tags",
                                       timeout=3).raise_for_status())
-    _, l = auth.requete("SELECT COUNT(*) FROM documents_vectorises")
-    st.write(f"Documents vectorisés : **{l[0][0]}**")
+    
+    # Vérification sécurisée pour les documents
+    try:
+        _, l = auth.requete("SELECT COUNT(*) FROM documents_vectorises")
+        st.write(f"Documents vectorisés : **{l[0][0]}**")
+    except Exception:
+        st.warning("Table 'documents_vectorises' introuvable. Avez-vous lancé l'ingestion RAG ?")
 
-    st.subheader("Cache sémantique")
-    _, l = auth.requete("SELECT COUNT(*), COALESCE(SUM(nb_hits),0) "
-                        "FROM cache_semantique")
-    c1, c2 = st.columns(2)
-    c1.metric("Entrées en cache", l[0][0])
-    c2.metric("Réponses servies par le cache", int(l[0][1]))
-    _, s = auth.requete("SELECT valeur FROM parametres "
-                        "WHERE cle = 'cache_seuil'")
-    seuil = st.slider("Seuil de similarité (plus haut = plus strict)",
-                      0.85, 0.99, float(s[0][0]) if s else 0.92, 0.01)
-    col_a, col_b = st.columns(2)
-    if col_a.button("Enregistrer le seuil"):
-        conn = auth.connexion()
-        with conn.cursor() as cur:
-            cur.execute("""INSERT INTO parametres VALUES ('cache_seuil', %s)
-                           ON CONFLICT (cle) DO UPDATE SET valeur = EXCLUDED.valeur""",
-                        (str(seuil),))
-        conn.commit()
-        conn.close()
-        st.success(f"Seuil enregistré : {seuil} (effet immédiat)")
-    if col_b.button("Vider le cache"):
-        cache.vider()
-        st.success("Cache vidé.")
-
-    st.subheader("Utilisateurs")
-    tableau("SELECT login, role, nom_affiche FROM utilisateurs_prov ORDER BY id")
-
+    st.subheader("Utilisateurs (Backend)")
+    # On utilise la table 'users' du backend au lieu de 'utilisateurs_prov'
+    tableau("SELECT username AS \"Identifiant\", role AS \"Rôle\" FROM users ORDER BY id")
 
 PAGES = {
     "assure": [("Assistant virtuel", page_assistant),
@@ -201,6 +183,8 @@ PAGES = {
     "gestionnaire": [("Tableau de bord", page_gestionnaire)],
     "administrateur": [("Administration", page_admin),
                        ("Tableau de bord", page_gestionnaire)],
+    "admin": [("Administration", page_admin),  # <-- Ajout
+              ("Tableau de bord", page_gestionnaire)],
 }
 
 
