@@ -150,10 +150,12 @@ def page_gestionnaire(user):
 
 def etat_service(nom, test):
     try:
-        test()
-        st.success(f"{nom} : OK")
-    except Exception as e:  # noqa: BLE001
-        st.error(f"{nom} : indisponible ({type(e).__name__})")
+        requests.get(f"{OLLAMA_URL}/api/tags", timeout=3).raise_for_status()
+        st.success("Ollama (LLM) : OK")
+    except requests.exceptions.ConnectionError:
+        st.warning("Ollama (LLM) : en attente (modèle non téléchargé)")
+    except Exception as e:
+        st.error(f"Ollama (LLM) : indisponible ({type(e).__name__})")
 
 
 def page_admin(user):
