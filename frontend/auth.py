@@ -1,4 +1,4 @@
-"""Authentification branchée sur la table users du backend."""
+"""Authentification et accès base pour le frontend."""
 import os
 import psycopg2
 import bcrypt
@@ -13,30 +13,35 @@ def connexion():
         user=os.getenv("DB_USER", "predicare"),
         password=os.getenv("DB_PASSWORD", "predicare123"))
 
-def verifier(login, mot_de_passe):
-    """Retourne un dict utilisateur si le login est bon, sinon None."""
+def requete(sql, params=None):
+    """Exécute un SELECT et retourne (colonnes, lignes)."""
     conn = connexion()
     with conn.cursor() as cur:
-        # On interroge la table users du backend
-        cur.execute("SELECT username, hashed_password, role FROM users WHERE username = %s", (login,))
-        ligne = cur.fetchone()
+        cur.execute(sql, params)
+        colonnes = [d[0] for d in cur.description]
+        lignes = cur.fetchall()
     conn.close()
+    return colonnes, lignes
 
-    if not ligne:
+def verifier(login, mot_de_passe):
+    """Retourne un dict utilisateur si le login est bon, sinon None."""
+    _, lignes = requete(
+        "SELECT username, hashed_password, role FROM users WHERE username = %s", 
+        (login,)
+    )
+    
+    if not lignes:
         return None
     
-    username, hashed_password, role = ligne
+    username, hashed_password, role = lignes[0]
     
-    # Vérification directe avec bcrypt (sans passlib)
     try:
-        # bcrypt.checkpw a besoin d'octets (bytes) en entrée
         if not bcrypt.checkpw(mot_de_passe.encode('utf-8'), hashed_password.encode('utf-8')):
             return None
     except Exception as e:
         print(f"Erreur de vérification bcrypt : {e}")
         return None
 
-    # On adapte le retour pour que le reste de ton app.py continue de fonctionner
     return {
         "login": username, 
         "role": role, 
