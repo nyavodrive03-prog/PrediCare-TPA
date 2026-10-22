@@ -5,8 +5,8 @@ import pandas as pd
 from typing import Dict, Any
 
 # On corrige le chemin pour utiliser TON modèle
-MODEL_PATH = Path("/ml/models/fraud_model_xgb.pkl")
-FEATURES_PATH = Path("/ml/models/feature_names.pkl")
+MODEL_PATH = Path("/ml/models/v1/fraud_model_xgb.pkl")
+FEATURES_PATH = Path("/ml/models/v1/feature_names.pkl")
 
 print("Chargement du modèle de fraude...")
 model = None

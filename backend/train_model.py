@@ -63,12 +63,12 @@ print(f"ROC-AUC    : {roc_auc_score(y_test, y_proba):.4f}")
 
 # 7. Sauvegarde du modèle
 os.makedirs("/ml/models", exist_ok=True)
-model_path = "/ml/models/fraud_model_xgb.pkl"
+model_path = "/ml/models/v1/fraud_model_xgb.pkl"
 joblib.dump(model, model_path)
 print(f"\nModèle sauvegardé : {model_path}")
 
 # Sauvegarder aussi les noms des colonnes
-joblib.dump(list(X.columns), "/ml/models/feature_names.pkl")
+joblib.dump(list(X.columns), "/ml/models/v1/feature_names.pkl")
 print("Noms des features sauvegardés.")
 
 print("\nEntraînement terminé avec succès.")

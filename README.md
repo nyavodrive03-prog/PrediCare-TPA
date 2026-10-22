@@ -554,9 +554,9 @@ Le projet prévoit notamment les fichiers suivants :
 
 ```text
 ml/
-└── models/
-    ├── fraud_model_xgb.pkl
-    └── feature_names.pkl
+└── models/v1
+            ├── fraud_model_xgb.pkl
+            └── feature_names.pkl
 ```
 
 Ces noms et ce chemin sont à confirmer dans la configuration du modèle.
