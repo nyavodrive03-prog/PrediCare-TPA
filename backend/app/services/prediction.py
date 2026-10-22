@@ -1,39 +1,45 @@
 import joblib
-import pandas as pd
-import numpy as np
+from pathlib import Path
 import shap
+import pandas as pd
 from typing import Dict, Any
 
-MODEL_PATH = "/ml/models/fraud_model_xgb.pkl"
-FEATURES_PATH = "/ml/models/feature_names.pkl"
+# On corrige le chemin pour utiliser TON modèle
+MODEL_PATH = Path("/ml/models/fraud_model_xgb.pkl")
+FEATURES_PATH = Path("/ml/models/feature_names.pkl")
 
 print("Chargement du modèle de fraude...")
-model = joblib.load(MODEL_PATH)
-feature_names = joblib.load(FEATURES_PATH)
-explainer = shap.TreeExplainer(model)
-print("Modèle et SHAP chargés avec succès.")
+model = None
+feature_names = None
+explainer = None
+
+try:
+    if MODEL_PATH.exists() and FEATURES_PATH.exists():
+        model = joblib.load(MODEL_PATH)
+        feature_names = joblib.load(FEATURES_PATH)
+        explainer = shap.TreeExplainer(model)
+        print("Modèle et SHAP chargés avec succès.")
+    else:
+        print("Attention : fichiers du modèle introuvables.")
+except Exception as e:
+    print(f"Erreur lors du chargement du modèle : {e}")
 
 def predict_fraud(data: Dict[str, Any]) -> Dict[str, Any]:
+    if model is None or feature_names is None:
+        raise Exception("Modèle non chargé")
+    
     try:
-        # Créer un DataFrame
         df = pd.DataFrame([data])
 
-        # Ajouter les colonnes manquantes avec 0
         for col in feature_names:
             if col not in df.columns:
                 df[col] = 0
 
-        # Garder uniquement les features du modèle (dans le bon ordre)
         X = df[feature_names].fillna(0)
-
-        # Prédiction
         proba = float(model.predict_proba(X)[0][1])
         prediction = int(proba >= 0.5)
-
-        # SHAP
         shap_values = explainer.shap_values(X)[0]
 
-        # Top 5 features
         shap_importance = sorted(
             zip(feature_names, shap_values),
             key=lambda x: abs(x[1]),
@@ -56,6 +62,5 @@ def predict_fraud(data: Dict[str, Any]) -> Dict[str, Any]:
             "seuil_utilise": 0.5,
             "explication": top_features
         }
-
     except Exception as e:
         raise Exception(f"Erreur lors de la prédiction : {str(e)}")
