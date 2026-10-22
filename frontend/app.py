@@ -75,16 +75,21 @@ def page_assistant(user):
     st.caption("Posez vos questions sur votre contrat ou vos remboursements.")
 
     def fn(q):
-        # Garde-fou : refus avant tout appel à l'agent ou au LLM
+        # Garde-fou : refus avant tout appel à l'agent
         if garde_fous.vise_autre_assure(q, user["assure_id"]):
             return garde_fous.MESSAGE_REFUS, "🛡️ Demande refusée (aucune donnée lue)"
-        res = poser_question(q, {"assure_id": user["assure_id"],
-                                 "formule": user["formule"]})
+        
+        # On appelle l'agent (qui gérera Ollama ou le mode secours tout seul)
+        res = poser_question(q, {"assure_id": user["assure_id"], "formule": user["formule"]})
+        
         if res.get("cache"):
             info = f"⚡ Réponse du cache (similarité {res['similarite']})"
+        elif res.get("outils") and res["outils"][0][0] == "RAG_Secours":
+            info = "⚠️ Mode secours (Ollama absent)"
         else:
             noms = ", ".join(sorted({n for n, _ in res["outils"]})) or "aucun"
-            info = f"🤖 Générée par le LLM · outils : {noms}"
+            info = f"🤖 Généré par LLM · outils : {noms}"
+            
         return res["reponse"], info
 
     afficher_chat(fn, "chat_assure")
